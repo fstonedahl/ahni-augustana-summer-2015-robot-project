@@ -981,6 +981,9 @@ public class Properties extends java.util.Properties {
 		if (logger == null)
 			logger = Logger.getLogger(Properties.class.getName());
 	}
+	public void disableLogger() {
+		logger = null;
+	}
 	
 	// Load property files included from this set of properties.
 	// Only properties which are not already defined are included.

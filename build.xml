@@ -24,7 +24,7 @@
 
 	<target name="runjar">
 		<antcall target="build" />
-		<jar destfile="../ahni.jar" filesetmanifest="mergewithoutmain">
+		<jar destfile="ahni.jar" filesetmanifest="mergewithoutmain">
 			<manifest>
 				<attribute name="Main-Class" value="com.ojcoleman.ahni.hyperneat.Run" />
 			</manifest>
@@ -32,11 +32,11 @@
 			<fileset dir="src" />
 			<zipgroupfileset dir="lib" includes="**/*.jar" />
 		</jar>
+	  <copy file="ahni.jar" todir="../AHNINN-Extension/"/>
 	</target>
-	
 	<target name="runjarnolib">
 		<antcall target="build" />
-		<jar destfile="../ahni.jar" filesetmanifest="mergewithoutmain">
+		<jar destfile="ahni.jar" filesetmanifest="mergewithoutmain">
 			<manifest>
 				<attribute name="Main-Class" value="com.ojcoleman.ahni.hyperneat.Run" />
 			</manifest>
@@ -45,10 +45,22 @@
 		</jar>
 	</target>
 
+	<target name="augiejar">
+		<antcall target="build" />
+		<jar destfile="augie.jar" filesetmanifest="mergewithoutmain">
+			<manifest>
+				<attribute name="Main-Class" value="edu.augustana.temp.TestOpenNeuralNet" />
+			</manifest>
+			<fileset dir="antbin" />
+			<fileset dir="src" />
+			<!-- <zipgroupfileset dir="lib" includes="**/*.jar" /> -->
+		</jar>
+	</target>
+
 	<target name="runjarv">
 		<antcall target="build" />
 		<buildnumber />
-		<jar destfile="../ahni-${major-version-number}.${build.number}.jar"
+		<jar destfile="ahni-${major-version-number}.${build.number}.jar"
 			filesetmanifest="mergewithoutmain">
 			<manifest>
 				<attribute name="Main-Class" value="com.ojcoleman.ahni.hyperneat.Run" />
