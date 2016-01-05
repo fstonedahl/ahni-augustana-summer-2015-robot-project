@@ -32,7 +32,7 @@
 			<fileset dir="src" />
 			<zipgroupfileset dir="lib" includes="**/*.jar" />
 		</jar>
-	  <copy file="ahni.jar" todir="../AHNINN-Extension/"/>
+	  <copy file="ahni.jar" todir="AHNINN-Extension/"/>
 	</target>
 	<target name="runjarnolib">
 		<antcall target="build" />

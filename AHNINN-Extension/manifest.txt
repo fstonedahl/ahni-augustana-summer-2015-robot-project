@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Extension-Name: ahninn
+Class-Manager: org.nlogo.extensions.ahninn.AHNINNExtension
+NetLogo-Extension-API-Version: 5.0

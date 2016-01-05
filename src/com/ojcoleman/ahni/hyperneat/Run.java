@@ -71,6 +71,9 @@ public class Run {
 	@Parameter(names = { "-force", "-f" }, description = "Force using the specified output directory even if it exists.")
 	public boolean forceOutputDir = false;
 
+	@Parameter(names = { "-numthreads", "-nt" }, description = "Override the number of threads to use during fitness evaluation.")
+	public int numThreads = -1;
+
 	@Parameter(converter = PropertiesConverter.class, arity = 1, description = "<Properties file to read experiment parameters from>")
 	public List<Properties> propertiesFiles = new ArrayList<Properties>(1);
 
@@ -100,6 +103,7 @@ public class Run {
 				System.exit(-1);
 			}
 			runner.run();
+			System.exit(0); // force exit of all threads
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -134,6 +138,10 @@ public class Run {
 		if (!properties.containsKey("run.id")) {
 			properties.setProperty("run.id", "0");
 		}
+		
+		if (numThreads != -1) { // override number of threads...
+			properties.setProperty("fitness.max_threads", "" + numThreads);
+		} 
 		
 		// If there should be no output whatsoever.
 		if (noOutput) {

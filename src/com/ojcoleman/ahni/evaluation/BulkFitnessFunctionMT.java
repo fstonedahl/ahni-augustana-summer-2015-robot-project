@@ -67,7 +67,7 @@ import com.ojcoleman.ahni.util.Parallel.Operation;
  */
 public abstract class BulkFitnessFunctionMT extends AHNIFitnessFunction implements Configurable {
 	private static final long serialVersionUID = 1L;
-	static Logger logger = Logger.getLogger(BulkFitnessFunctionMT.class);
+	protected static Logger logger = Logger.getLogger(BulkFitnessFunctionMT.class);
 	private static NumberFormat nf2 = new DecimalFormat("0.00");
 
 	/**

@@ -33,7 +33,7 @@ public class SimpleXOR3Test extends BulkFitnessFunctionMT  {
 	
 	@Override
 	public void evaluate(Chromosome genotype, Activator substrate, String baseFileName, boolean logText, boolean logImage) {
-		// _evaluate(genotype, substrate, baseFileName, logText, logImage, null, null);
+		_evaluate(genotype, substrate, baseFileName, logText, logImage, null, null);
 	}
 
 	public void _evaluate(Chromosome genotype, Activator substrate, String baseFileName, boolean logText, boolean logImage, double[] fitnessValues, Behaviour[] behaviours) {
