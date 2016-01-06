@@ -351,6 +351,7 @@ public class HyperNEATEvolver implements Configurable, GeneticEventListener {
 			fittestChromosomes[generation] = fittest;
 			bestPerformingChromosomes[generation] = bestPerforming;
 			bestFitnesses[generation] = fittest.getFitnessValue();
+			
 			bestPerformances[generation] = bestPerforming.getPerformanceValue();
 			
 			int numSpecies = genotype.getSpecies().size();
@@ -650,16 +651,9 @@ public class HyperNEATEvolver implements Configurable, GeneticEventListener {
 				if (substrate == null) {
 					logger.warn("Champ substrate is null, which probably means it's been classified as a dud by the transcriber (e.g. perhaps because there are no connections from input to output.");
 				} else {
-					String baseFileName = properties.getProperty(HyperNEATConfiguration.OUTPUT_DIR_KEY) + properties.getProperty(HyperNEATConfiguration.OUTPUT_PREFIX_KEY, "") + label + "best_performing-" + (finished ? "final" : generation) + "-" + champ.getId();
-					if (logString) {
-						BufferedWriter outputfile = new BufferedWriter(new FileWriter(baseFileName + ".txt"));
-						outputfile.write("String representation of " + msg + ":\n" + substrate);
-						if (cppn != null) {
-							outputfile.write("\n\n\nString representation of CPPN:\n" + cppn);
-						}
-						outputfile.write("\n\n\nString representation of Chromosome:\n" + champ.getMaterial().toXML());
-						outputfile.close();
-					}
+					String champsFolderPath =  properties.getProperty(HyperNEATConfiguration.OUTPUT_DIR_KEY) + "champs/";
+					new File(champsFolderPath).mkdir(); // fails silently if dir already exists...
+					String baseFileName = champsFolderPath + properties.getProperty(HyperNEATConfiguration.OUTPUT_PREFIX_KEY, "") + label + "best_performing-" + (finished ? "final" : generation) + "-" + champ.getId();
 
 					if (logImage) {
 						BufferedImage image = new BufferedImage(800, 800, BufferedImage.TYPE_3BYTE_BGR);
@@ -677,25 +671,64 @@ public class HyperNEATEvolver implements Configurable, GeneticEventListener {
 						double origFitness = champ.getFitnessValue();
 						double[] origFitnesses = new double[champ.getFitnessValues().length];
 						System.arraycopy(champ.getFitnessValues(), 0, origFitnesses, 0, origFitnesses.length);
-						
+						// generates novelty archive image?
 						((AHNIFitnessFunction) bulkFitnessFunc).evaluate(champ, substrate, baseFileName + "-evaluation", logString, logImage);
+						
 						if (((AHNIFitnessFunction) bulkFitnessFunc).evaluateGeneralisation(champ, substrate, baseFileName + "-evaluation-generalisation", logString, logImage)) {
+
 							String genRes = "Generalisation results:";
 							for (int i = 0; i < bulkFitnessFunc.getObjectiveLabels().length; i++) {
 								genRes += "\n\t" + bulkFitnessFunc.getObjectiveLabels()[i] + ": " + nf4.format(champ.getFitnessValue(i));
 							}
+							String headerRow = "";
+							String dataRow= "";
 							for (Map.Entry<String, Double> pv : champ.getAllPerformanceValues().entrySet()) {
+								headerRow += (pv.getKey().replaceFirst("^\\d*", "")) + "\t";
+								dataRow += nf4.format(pv.getValue()) + "\t";
 								genRes += "\n\t" + pv.getKey().replaceFirst("^\\d*", "") + ": " + nf4.format(pv.getValue());
 							}
-							logger.info(genRes);
+							//logger.info(genRes);
+							if (logString) {
+								BufferedWriter outputfile = new BufferedWriter(new FileWriter(baseFileName + ".txt"));
+								outputfile.write("String representation of " + msg + ":\n" + substrate);
+								outputfile.write("\n\n\n" + genRes);
+								if (cppn != null) {
+									outputfile.write("\n\n\nString representation of CPPN:\n" + cppn);
+								}
+								outputfile.write("\n\n\nString representation of Chromosome:\n" + champ.getMaterial().toXML());
+								outputfile.close();
+
+// probably not needed, unless we start caring about multiple performance values... ~FJS
+//								// collect generalization results in one file 
+//								String generalizationResultsFileName = properties.getProperty(HyperNEATConfiguration.OUTPUT_DIR_KEY) + properties.getProperty(HyperNEATConfiguration.OUTPUT_PREFIX_KEY, "") + "generalization_unbiased_perf_results.csv";
+//								BufferedWriter genResultsFile = new BufferedWriter(new FileWriter(generalizationResultsFileName, true));
+//								if (generation == 0) {
+//									genResultsFile.write(headerRow + "\n");
+//								}
+//								genResultsFile.write(dataRow + "\n");
+//								genResultsFile.close();
+							}						
+
 						}
-						
-						champ.resetPerformanceValues();
-						for (Map.Entry<String, Double> e : origPerformanceValues.entrySet()) {
-							champ.setPerformanceValue(e.getKey(), e.getValue());
-						}
+						//TODO: Hack here we force the recorded best performance to be the re-evaluated version from the generalized trials,
+						//      but we reset the fitness value to what it was before the new trials, so as not to affect evolution.
+						bestPerformances[generation] = champ.getPerformanceValue();						
+						//champ.resetPerformanceValues();
+						//for (Map.Entry<String, Double> e : origPerformanceValues.entrySet()) {
+						//	champ.setPerformanceValue(e.getKey(), e.getValue());
+						//}
 						if (!Double.isNaN(origFitness)) champ.setFitnessValue(origFitness);
 						System.arraycopy(origFitnesses, 0, champ.getFitnessValues(), 0, origFitnesses.length);
+					} else {
+						if (logString) {
+							BufferedWriter outputfile = new BufferedWriter(new FileWriter(baseFileName + ".txt"));
+							outputfile.write("String representation of " + msg + ":\n" + substrate);
+							if (cppn != null) {
+								outputfile.write("\n\n\nString representation of CPPN:\n" + cppn);
+							}
+							outputfile.write("\n\n\nString representation of Chromosome:\n" + champ.getMaterial().toXML());
+							outputfile.close();
+						}						
 					}
 				}
 			} catch (TranscriberException e) {

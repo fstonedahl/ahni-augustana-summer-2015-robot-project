@@ -74,6 +74,9 @@ public class Run {
 	@Parameter(names = { "-numthreads", "-nt" }, description = "Override the number of threads to use during fitness evaluation.")
 	public int numThreads = -1;
 
+	@Parameter(names = { "-numruns", "-nr" }, description = "Override the number of full evolution runs to do.")
+	public int numRuns = -1;
+
 	@Parameter(converter = PropertiesConverter.class, arity = 1, description = "<Properties file to read experiment parameters from>")
 	public List<Properties> propertiesFiles = new ArrayList<Properties>(1);
 
@@ -141,6 +144,9 @@ public class Run {
 		
 		if (numThreads != -1) { // override number of threads...
 			properties.setProperty("fitness.max_threads", "" + numThreads);
+		} 
+		if (numRuns != -1) { // override number of runs...
+			properties.setProperty("num.runs", "" + numRuns);
 		} 
 		
 		// If there should be no output whatsoever.
@@ -247,6 +253,7 @@ public class Run {
 				avgRunTime = avgRunTime * 0.9 + duration * 0.1;
 			int eta = (int) Math.round(avgRunTime * (numRuns - (run + 1)));
 			logger.info("\n--- Run finished in " + Misc.formatTimeInterval(duration) + ".  ETA to complete all runs:" + Misc.formatTimeInterval(eta) + ". ------------------\n");
+			savePerformanceData(run, numRuns); // save after each completed run, in case the program quits with an error...
 		}
 		long end = System.currentTimeMillis();
 
@@ -263,17 +270,30 @@ public class Run {
 		avgGenerations /= numRuns;
 		logger.info("Average number of generations: " + avgGenerations);
 		logger.info("Number of runs in which solution was found: " + solvedCount);
-
+		
+	}
+	
+	private void savePerformanceData(int run, int numRuns) throws IOException {
+		double[][] performanceSoFar = performance;
+		double[][] fitnessSoFar = fitness;
+		if (run < numRuns - 1) {
+			performanceSoFar = new double[run + 1][]; 
+			fitnessSoFar = new double[run + 1][]; 
+			for (int i = 0; i <= run; i++) {
+				performanceSoFar[i] = performance[i];
+				fitnessSoFar[i] = fitness[i];
+			}
+		}
 		if (resultFileNameBase != null) {
 			String resultPerfFileName = resultFileNameBase + "-performance.csv";
-			Results resultsPerf = new Results(performance, null);
+			Results resultsPerf = new Results(performanceSoFar, null);
 			BufferedWriter resultFilePerf = new BufferedWriter(new FileWriter(resultPerfFileName));
 			resultFilePerf.append(resultsPerf.toString());
 			resultFilePerf.close();
 			logger.info("Wrote best performance for each generation in each run to " + resultPerfFileName);
 
 			String resultFitFileName = resultFileNameBase + "-fitness.csv";
-			Results resultsFitness = new Results(fitness, null);
+			Results resultsFitness = new Results(fitnessSoFar, null);
 			BufferedWriter resultFileFit = new BufferedWriter(new FileWriter(resultFitFileName));
 			resultFileFit.append(resultsFitness.toString());
 			resultFileFit.close();
@@ -296,6 +316,7 @@ public class Run {
 				logger.info("Wrote statistics for best fitness over each run for each generation to " + statsFitnessFileName);
 			}
 		}
+		
 	}
 	
 	private void logEnv() {

@@ -3,7 +3,7 @@ extensions [ ahninn ]
 breed [robots robot]
 breed [turrets turret]
 
-globals [ goal-x goal-y found-goal?  found-goal-tick
+globals [ goal-x goal-y goal-patches
   ROBOT_CENTER_TO_FRONT_BUMPER_LENGTH
   ROBOT_CENTER_TO_TURRET_LENGTH
   ROBOT_BACK_EDGE_TO_TURRET_LENGTH
@@ -20,7 +20,7 @@ globals [ goal-x goal-y found-goal?  found-goal-tick
   southwest-walls
   northwest-walls
 ]
-patches-own [ wall? is-north-wall? is-east-wall? is-south-wall? is-west-wall? is-goal? ]
+patches-own [ wall? is-north-wall? is-east-wall? is-south-wall? is-west-wall? is-goal? goal-id]
 robots-own [ 
   my-neural-net-brain
   my-turret 
@@ -28,6 +28,8 @@ robots-own [
   distance-sensor-data-array 
   action-queue 
   time-to-next-action 
+  found-goal?  
+  found-goal-tick
  ]
 
 to setup
@@ -39,16 +41,18 @@ to setup
   set ROBOT_CENTER_TO_BACK_EDGE_LENGTH ROBOT_CENTER_TO_TURRET_LENGTH + ROBOT_BACK_EDGE_TO_TURRET_LENGTH ; patches
   set ROBOT_WHEEL_EDGE_TO_EDGE_WIDTH 1.5 ; patches
   
-  set found-goal? false
-  set found-goal-tick -1
   setup-walls
-  setup-goal
+  ifelse (many-goals?) [
+    setup-many-small-goals
+  ][
+    setup-one-big-goal
+  ]
   setup-robots
   reset-ticks
 end
 
 to setup-walls
-  ask patches [ set wall? false set is-goal? false
+  ask patches [ set wall? false set is-goal? false set goal-id 0
                 set is-north-wall? false set is-east-wall? false set is-south-wall? false set is-west-wall? false ] ; normal patches
   ask patches with [ (abs pxcor = max-pxcor or abs pycor = max-pycor) ] [
     set wall? true
@@ -84,21 +88,73 @@ to setup-walls
   set southeast-walls (patch-set south-walls east-walls)
   set southwest-walls (patch-set south-walls west-walls)
 end
-to setup-goal
-  ifelse move-goal? [
-    set goal-x (random 21) - 21.5
-    set goal-y (random 21) - 21.5
-  ][
+to setup-one-big-goal
+  ifelse goal-placement = "random" or goal-placement = "seeded" [
+    with-local-randomness [
+      if goal-placement = "seeded" [ random-seed goal-loc-seed ]
+      set goal-x (random 21) - 21.5
+      set goal-y (random 21) - 21.5
+    ]    
+  ][ ; goal placement "fixed"
     set goal-x -11.5
     set goal-y -11.5
   ]
   if (flip-horiz?) [ set goal-x goal-x * -1 ]
 
-  ask patches with [ (abs (pxcor - goal-x) < 1) and (abs (pycor - goal-y) < 1) ]
+  set goal-patches patches with [ (abs (pxcor - goal-x) < 1) and (abs (pycor - goal-y) < 1) ]
+  ask goal-patches
   [
     set pcolor white
     set is-goal? true
   ]
+end
+to setup-many-small-goals
+  let num-goals-placed 0
+  let GOAL_SIZE 2
+  set goal-patches no-patches
+  ifelse goal-placement = "random" or goal-placement = "seeded" [
+    with-local-randomness [
+      if goal-placement = "seeded" [ random-seed goal-loc-seed ]
+        while [num-goals-placed < num-robots] [
+          ask one-of patches with [ not wall? and not is-goal?] [
+            let my-pxcor pxcor
+            let my-pycor pycor
+            let greater-neighborhood patches with [my-pxcor - 1 <= pxcor and pxcor <= my-pxcor + GOAL_SIZE
+              and my-pycor - 1 <= pycor and pycor <= my-pycor + GOAL_SIZE]
+            if all? greater-neighborhood [not wall? and not is-goal?] [
+              set num-goals-placed num-goals-placed + 1
+              let goal-squares greater-neighborhood with [my-pxcor <= pxcor and pxcor <= my-pxcor + GOAL_SIZE - 1
+                and my-pycor <= pycor and pycor <= my-pycor + GOAL_SIZE - 1]
+              ask goal-squares [ 
+                set is-goal? true
+                set goal-id num-goals-placed
+                set pcolor white
+              ]
+              set goal-patches (patch-set goal-patches goal-squares)
+            ]
+          ]
+        ]
+      ]
+    ] [ ; goal placement "fixed" (uses list of coords for upper-left corner)
+;        let pxs 
+;        let pys 
+        let pxs [ -16  -8 -16  -8   0   7  15   7 ]   ;[ -12 -12 -12  -12   0  11  11  11 ] 
+        let pys [ -15  -5   5  15   8  15   5  -5 ] ;[ -13   -4  5   14  14  14  5   -4 ]
+       (foreach pxs pys [
+         set num-goals-placed num-goals-placed + 1
+         let my-pxcor ?1
+         let my-pycor ?2
+         let goal-squares patches with [my-pxcor <= pxcor and pxcor <= my-pxcor + GOAL_SIZE - 1
+                                    and my-pycor <= pycor and pycor <= my-pycor + GOAL_SIZE - 1]
+         ask goal-squares [ 
+           set is-goal? true
+           set goal-id num-goals-placed
+           set pcolor white
+         ]
+         set goal-patches (patch-set goal-patches goal-squares)
+       ]
+       )
+    ]
 end
 to setup-robots
   let robot-start-x 0.5 + 1.2  ;0.5 is the edge of the wall, plus 12 cm over  
@@ -113,10 +169,12 @@ to setup-robots
       set xcor robot-start-x
       if (flip-horiz?) [ set xcor xcor * -1 ]
       set robot-start-x robot-start-x + 2.8  ; 28 cm between robots on the starting line
-      set color gray + 1
+      set color red  ;gray + 1
       set size 2
       set shape "lego_robot"
       set heading 0
+      set found-goal? false
+      set found-goal-tick -1
       set bump-sensor-pressed? false
       set distance-sensor-data-array []
       set action-queue []
@@ -184,9 +242,10 @@ to-report potentially-visible-walls-for-robot-angle [ angle ]
 end
 
 to go
-  if found-goal? and stop-when-found-goal? [ stop ]
+  if stop-when-found-goal? and (many-goals? and all? robots [found-goal?]) or (not many-goals? and any? robots with [ found-goal? ]) [ stop ]
   foreach (sort-on [time-to-next-action] robots) [
     ask ? [ 
+      if (many-goals? and stop-when-found-goal? and found-goal?) [ stop ]
       while [time-to-next-action <= 0] [
         if robot-action-queue-is-empty? [
           robot-enqueue-full-scan ; reset to initial state of starting a full scan
@@ -307,9 +366,13 @@ end
 to robot-forward-about-one-cm [ cm-dist ]  ; cm-dist should be close to 1.0 (but could be a little more/less)
   let patch-dist cm-dist / 10
     ifelse (obstacle-ahead (patch-dist + ROBOT_CENTER_TO_FRONT_BUMPER_LENGTH)) or (obstacle-ahead 0.5)
-    [  set bump-sensor-pressed? true stop  ]
+    [  set bump-sensor-pressed? true  ]
     [  forward patch-dist   ]
-    if is-goal? and not found-goal? [ set found-goal? true set found-goal-tick ticks]    
+    if is-goal? and not found-goal? [ 
+      set found-goal? true set found-goal-tick ticks 
+      set color color - 2
+      ;; ask goal-patches with [goal-id = [goal-id] of myself] [ set pcolor gray + 3]
+      ]    
 end
 
 to robot-backward-one-cm 
@@ -339,7 +402,7 @@ to robot-make-angle-decision
 end
 
 to-report angle-choice-human-designed
-  if (item 0 distance-sensor-data-array) > 1 [
+  if (item 0 distance-sensor-data-array) > human-clear-distance-threshold [
     report 0
   ]
   
@@ -469,7 +532,7 @@ to debug-flashp [ pats flash-color msg ]
 end
 
 
-to-report evaluate-fitness
+to-report fitness-close-to-goal
 ;  random-seed 1234 ;; TODO DEBUG REMOVE
   setup
   repeat 2400 [ go ]
@@ -485,6 +548,17 @@ to-report evaluate-fitness
 ;  report 1 - avg-robot-dist / ((sqrt 2) * (world-width - 2))  ; normalized value between 0 (worst) and 1 (best)
 
 end
+
+to-report fitness-num-goals-found
+;  random-seed 1234 ;; TODO DEBUG REMOVE
+  setup
+  repeat 3600 [ go ]
+  
+  let total-goals length remove-duplicates ([goal-id] of goal-patches)
+  let num-goals-found length remove-duplicates ([goal-id] of (goal-patches with [any? robots-here ]))
+  report num-goals-found / total-goals  ; normalized value between 0 (worst) and 1 (best)
+end
+
 
 
 to-report novelty-get-normalized-center-of-mass-x
@@ -549,10 +623,10 @@ ticks
 30.0
 
 BUTTON
-28
-249
-102
-283
+26
+274
+100
+308
 NIL
 setup
 NIL
@@ -577,10 +651,10 @@ String representation of best performing substrate from final generation:\n9098\
 String
 
 BUTTON
-113
-249
-177
-283
+111
+274
+175
+308
 NIL
 go
 T
@@ -620,10 +694,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-22
-207
-211
-240
+20
+232
+209
+265
 time-increment
 time-increment
 0
@@ -635,10 +709,10 @@ sec
 HORIZONTAL
 
 MONITOR
-194
-248
-287
-293
+192
+273
+285
+318
 mins
 ticks * time-increment / 60
 1
@@ -678,13 +752,13 @@ CHOOSER
 decision-mode
 decision-mode
 "neural_net" "human" "always_forward" "random"
-0
+1
 
 SWITCH
-6
-112
-187
-145
+390
+586
+571
+619
 better-turtle-vision?
 better-turtle-vision?
 0
@@ -714,10 +788,10 @@ rotate-after-bump?
 -1000
 
 SLIDER
-189
-112
-342
-145
+573
+586
+726
+619
 wall-vision-level
 wall-vision-level
 0
@@ -762,21 +836,10 @@ robot-trails?
 -1000
 
 SWITCH
-173
-160
-308
-193
-move-goal?
-move-goal?
-1
-1
--1000
-
-SWITCH
-32
-160
-165
-193
+16
+113
+149
+146
 flip-horiz?
 flip-horiz?
 1
@@ -784,10 +847,10 @@ flip-horiz?
 -1000
 
 SWITCH
-35
-297
-268
-330
+33
+322
+266
+355
 stop-when-found-goal?
 stop-when-found-goal?
 0
@@ -812,15 +875,66 @@ NIL
 1
 
 SWITCH
-20
-57
-254
-90
+740
+588
+937
+622
 random-start-locations?
 random-start-locations?
 1
 1
 -1000
+
+SWITCH
+15
+156
+167
+189
+many-goals?
+many-goals?
+0
+1
+-1000
+
+SLIDER
+121
+56
+361
+89
+human-clear-distance-threshold
+human-clear-distance-threshold
+0
+2.5
+0.5
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+182
+156
+342
+190
+goal-loc-seed
+goal-loc-seed
+0
+10000000
+1
+1
+1
+NIL
+HORIZONTAL
+
+CHOOSER
+191
+105
+330
+150
+goal-placement
+goal-placement
+"fixed" "random" "seeded"
+2
 
 @#$#@#$#@
 ## WHAT IS IT?
